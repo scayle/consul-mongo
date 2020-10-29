@@ -1,6 +1,6 @@
 # consul-mongo
 
-This dockerfile wraps the official mongo:3.6 docker image.
+This Dockerfile wraps the official mongo:3.6 docker image.
 It adds an automatic service registration for [consul](https://www.consul.io) as well as a simple health check.
 So everything from the [official mongo docker image](https://hub.docker.com/_/mongo) works exactly the same.
 
