@@ -50,48 +50,50 @@ func main() {
 
 	counter := 0
 
-	common.RegisterConsulService("mongodb", common.WithRegistrationModifier(func(registration *api.AgentServiceRegistration) {
-		defaultPort := 8101
+	common.RegisterConsulService("mongodb",
+		common.WithDefaultPort(27017),
+		common.WithRegistrationModifier(func(registration *api.AgentServiceRegistration) {
+			defaultPort := 8101
 
-		// setup simple health detection using a small webserver
-		registration.Check = new(api.AgentServiceCheck)
-		registration.Check.HTTP = fmt.Sprintf("http://%s:%d/healthcheck", registration.Address, healthPort(defaultPort))
-		registration.Check.Interval = "5s"
-		registration.Check.Timeout = "3s"
+			// setup simple health detection using a small webserver
+			registration.Check = new(api.AgentServiceCheck)
+			registration.Check.HTTP = fmt.Sprintf("http://%s:%d/healthcheck", registration.Address, healthPort(defaultPort))
+			registration.Check.Interval = "5s"
+			registration.Check.Timeout = "3s"
 
-		fmt.Println(registration.Address, healthPort(defaultPort))
-		http.HandleFunc("/healthcheck", func(w http.ResponseWriter, r *http.Request) {
-			fmt.Println("Healthcheck")
-			if !mongoHealth() {
-				if counter > 5 {
-					// The http handler would recover from a panic. -> use of os.Exit
-					fmt.Println("could not access mongo db for several times")
-					os.Exit(1)
+			fmt.Println(registration.Address, healthPort(defaultPort))
+			http.HandleFunc("/healthcheck", func(w http.ResponseWriter, r *http.Request) {
+				fmt.Println("Healthcheck")
+				if !mongoHealth() {
+					if counter > 5 {
+						// The http handler would recover from a panic. -> use of os.Exit
+						fmt.Println("could not access mongo db for several times")
+						os.Exit(1)
+					}
+
+					counter++
+					w.WriteHeader(http.StatusServiceUnavailable)
+					_, err := w.Write([]byte{})
+					if err != nil {
+						// The http handler would recover from a panic. -> use of os.Exit
+						fmt.Println(err)
+						os.Exit(1)
+					}
+					return
 				}
-
-				counter++
-				w.WriteHeader(http.StatusServiceUnavailable)
-				_, err := w.Write([]byte{})
+				_, err := fmt.Fprintf(w, `Mongodb is alive!`)
 				if err != nil {
 					// The http handler would recover from a panic. -> use of os.Exit
 					fmt.Println(err)
 					os.Exit(1)
 				}
-				return
-			}
-			_, err := fmt.Fprintf(w, `Mongodb is alive!`)
-			if err != nil {
-				// The http handler would recover from a panic. -> use of os.Exit
-				fmt.Println(err)
-				os.Exit(1)
-			}
-		})
+			})
 
-		go func() {
-			err := http.ListenAndServe(fmt.Sprintf(":%d", healthPort(defaultPort)), nil)
-			log.Printf("healthcheck webserver failed %v", err)
-			close(stop)
-		}()
-	}))
+			go func() {
+				err := http.ListenAndServe(fmt.Sprintf(":%d", healthPort(defaultPort)), nil)
+				log.Printf("healthcheck webserver failed %v", err)
+				close(stop)
+			}()
+		}))
 	<-stop
 }
